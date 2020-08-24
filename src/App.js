@@ -13,6 +13,8 @@ import PropTypes from 'prop-types';
 const API_KEY = '6351dad7ec9d4c4f9f03bab9b5180c38';
 const BUS_POSITIONS = 'https://api.wmata.com/Bus.svc/json/jBusPositions';
 const BUS_ROUTES = 'https://api.wmata.com/Bus.svc/json/jRouteDetails?RouteID=';
+const BUS_STOPS = 'https://api.wmata.com/Bus.svc/json/jStops?';
+
 mapboxgl.accessToken = 'pk.eyJ1Ijoic2ltbW9uc2QiLCJhIjoiY2poeXk3YzlpMHJsbTNwcnYyNW1zeG9vMCJ9.sRhhJsrU0qUGbM7LiSrW_Q';
 
 class App extends Component {
@@ -21,6 +23,7 @@ class App extends Component {
     this.getBusPositions = this.getBusPositions.bind(this);
     this.onGetRouteForBus = this.onGetRouteForBus.bind(this);
     this.constructRouteShape = this.constructRouteShape.bind(this);
+    this.makePointJson = this.makePointJson.bind(this);
   }
 
   state = {
@@ -34,6 +37,11 @@ class App extends Component {
     },
     //geojson containing info about bus routes
     bus_route_json: {
+      'type': 'FeatureCollection',
+      'features': []
+    },
+    //geojson containing info about bus stops
+    bus_stop_json: {
       'type': 'FeatureCollection',
       'features': []
     }
@@ -54,19 +62,6 @@ class App extends Component {
     const self = this;
     //the scope of this changes inside of the below function
     this.map.on('load', function () {
-      //add the points to the map
-      this.addSource('buses', {
-        'type': 'geojson',
-        'data': {...self.state.bus_json}
-      });
-      this.addLayer({
-        id: 'buses',
-        type: 'circle',
-        source: 'buses',
-        paint: {
-          'circle-color': '#546A7B'
-        }
-      });
 
       //pre-emptively adding the bus-route layer to the map
       this.addSource('bus_routes', {
@@ -78,8 +73,36 @@ class App extends Component {
         type: 'line',
         source: 'bus_routes',
         paint: {
-          'line-color': '#000000',        }
-      })
+          'line-color': '#000000',        
+        }
+      });
+      //add the bus stop points to the map
+      this.addSource('bus_stops', {
+        'type': 'geojson',
+        'data': {...self.state.bus_stop_json}
+      });
+      this.addLayer({
+        id: 'bus_stops',
+        type: 'circle',
+        source: 'bus_stops',
+        paint: {
+          'circle-color': '#542E71',
+          'circle-radius': 1.5
+        }
+      });
+      //add the bus position points to the map
+      this.addSource('buses', {
+        'type': 'geojson',
+        'data': {...self.state.bus_json}
+      });
+      this.addLayer({
+        id: 'buses',
+        type: 'circle',
+        source: 'buses',
+        paint: {
+          'circle-color': '#0E79B2'
+        }
+      });
     });
 
     this.map.on('click', 'buses', function(e) {
@@ -113,6 +136,7 @@ class App extends Component {
     });
 
     this.getBusPositions();
+    this.getBusStops();
     //this runs the bus position function every 5 seconds
     this.timer_id = setInterval(() => this.getBusPositions(), 5000);
   }
@@ -143,29 +167,62 @@ class App extends Component {
           'type': 'FeatureCollection',
           'features': []
         };
-        const updated_buses = [];
-    
-        //looping over each feature from the request
-        for (var feature of res.data.BusPositions) {
-          const feat_obj = {
-            'type': 'Feature',
-            'geometry': {
-              'type': 'Point',
-              'coordinates': [
-                feature.Lon,
-                feature.Lat
-              ]
-            },
-            'properties': {...feature}
-          }
-          updated_buses.push(feat_obj);
-        }
+
+        //call the function that returns the point data in an acceptable format
+        const updated_buses = this.makePointJson(res.data.BusPositions);
         new_bus_json['features'] = updated_buses;
         this.setState({bus_json: new_bus_json});
       })
       .catch(err => {
         console.log(err);
       });
+  }
+
+  //this function makes a call to the api to get information on all bus stops
+  getBusStops() {
+    axios
+    .get(BUS_STOPS, {
+      headers: {
+        'api_key': API_KEY
+      }
+    })
+    .then(res => {
+      const new_stop_json = {
+        'type': 'FeatureCollection',
+        'features': []
+      };
+
+      //call the function that returns the point data in an acceptable format
+      const updated_stops = this.makePointJson(res.data.Stops);
+      new_stop_json['features'] = updated_stops;
+      this.setState({bus_stop_json: new_stop_json});
+    })
+    .catch(err => {
+      console.log(err);
+    });
+  }
+
+  //this function takes objects from the WMATA API (bus stops, bus positions)
+  //that represent point data, and returns an acceptable geojson of those points
+  makePointJson(points_obj) {
+    const points_arr = [];
+    
+    //looping over each feature from the request
+    for (var feature of points_obj) {
+      const feat_obj = {
+        'type': 'Feature',
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [
+            feature.Lon,
+            feature.Lat
+          ]
+        },
+        'properties': {...feature}
+      }
+      points_arr.push(feat_obj);
+    }
+    return points_arr;
   }
 
   //this function makes a call to the api to get the bus route information
@@ -194,7 +251,6 @@ class App extends Component {
       const bus_routes = this.state.bus_route_json;
       bus_routes.features.push(feat_obj);
       this.setState({bus_route_json: bus_routes});
-      console.log(bus_routes)
     })
     .catch(err => {
       console.log(err);
