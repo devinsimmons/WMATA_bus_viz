@@ -62,6 +62,20 @@ class App extends Component {
     const self = this;
     //the scope of this changes inside of the below function
     this.map.on('load', function () {
+      //add the bus stop points to the map
+      this.addSource('bus_stops', {
+        'type': 'geojson',
+        'data': {...self.state.bus_stop_json}
+      });
+      this.addLayer({
+        id: 'bus_stops',
+        type: 'circle',
+        source: 'bus_stops',
+        paint: {
+          'circle-color': '#B7A4AA',
+          'circle-radius': 2.5
+        }
+      });
 
       //pre-emptively adding the bus-route layer to the map
       this.addSource('bus_routes', {
@@ -73,23 +87,12 @@ class App extends Component {
         type: 'line',
         source: 'bus_routes',
         paint: {
-          'line-color': '#000000',        
+          'line-color': '#0E79B2',
+          'line-width': 3.2,
+          'line-opacity': 0.6
         }
       });
-      //add the bus stop points to the map
-      this.addSource('bus_stops', {
-        'type': 'geojson',
-        'data': {...self.state.bus_stop_json}
-      });
-      this.addLayer({
-        id: 'bus_stops',
-        type: 'circle',
-        source: 'bus_stops',
-        paint: {
-          'circle-color': '#542E71',
-          'circle-radius': 2.5
-        }
-      });
+
       //add the bus position points to the map
       this.addSource('buses', {
         'type': 'geojson',
@@ -100,7 +103,7 @@ class App extends Component {
         type: 'circle',
         source: 'buses',
         paint: {
-          'circle-color': '#0E79B2'
+          'circle-color': '#3E8E6B'
         }
       });
     });
@@ -139,7 +142,7 @@ class App extends Component {
     this.map.on('click', 'bus_stops', function(e) {
       const coordinates = e.features[0].geometry.coordinates.slice();
       const name = e.features[0].properties.Name;
-      const routes = e.features[0].properties.Routes;
+      const routes = JSON.parse(e.features[0].properties.Routes);
        
       // Ensure that if the map is zoomed out such that multiple
       // copies of the feature are visible, the popup appears
@@ -157,8 +160,7 @@ class App extends Component {
           //when the user clicks on the button, they get to see all the routes
           //that the stop serves
           onClick = { () => {
-            for (var route of JSON.parse(routes)) {
-              console.log(route);
+            for (var route of routes) {
               self.onGetRouteByID(route);
             }
           }
@@ -189,10 +191,9 @@ class App extends Component {
     if(typeof(this.map.getSource('buses')) !== 'undefined') {
       this.map.getSource('buses').setData(this.state.bus_json);
       this.map.getSource('bus_routes').setData(this.state.bus_route_json);
+      this.map.getSource('bus_stops').setData(this.state.bus_stop_json);
     }
   }
-
-  //this function is called when the page loads and every 10 seconds after that
   getBusPositions() {
     axios
       .get(BUS_POSITIONS, {
@@ -210,11 +211,13 @@ class App extends Component {
         const updated_buses = this.makePointJson(res.data.BusPositions);
         new_bus_json['features'] = updated_buses;
         this.setState({bus_json: new_bus_json});
+        console.log('bus positions')
       })
       .catch(err => {
         console.log(err);
       });
   }
+
 
   //this function makes a call to the api to get information on all bus stops
   getBusStops() {
@@ -231,6 +234,7 @@ class App extends Component {
       };
 
       //call the function that returns the point data in an acceptable format
+      console.log('bus stops');
       const updated_stops = this.makePointJson(res.data.Stops);
       new_stop_json['features'] = updated_stops;
       this.setState({bus_stop_json: new_stop_json});
@@ -316,7 +320,7 @@ class App extends Component {
   }
 }
 
-//component that contains info that will go into the popup
+//component that contains info that will go into the popup for the bus layer
 const BusPopupContent = ({route, headsign, onClick}) =>
   <div>
     <div>{route} to {headsign}</div>
@@ -328,6 +332,7 @@ const BusPopupContent = ({route, headsign, onClick}) =>
     </button>
   </div>
 
+//component that makes popup content for the bus stops
 const BusStopPopupContent = ({name, routes, onClick}) =>
   <div>
     <div>{name}</div>
