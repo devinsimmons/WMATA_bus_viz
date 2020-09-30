@@ -168,7 +168,7 @@ class App extends Component {
         />,
         placeholder
       );
-       
+
       new mapboxgl.Popup()
         .setLngLat(coordinates)
         .setDOMContent(placeholder)
@@ -211,7 +211,6 @@ class App extends Component {
         const updated_buses = this.makePointJson(res.data.BusPositions);
         new_bus_json['features'] = updated_buses;
         this.setState({bus_json: new_bus_json});
-        console.log('bus positions')
       })
       .catch(err => {
         console.log(err);
@@ -234,7 +233,6 @@ class App extends Component {
       };
 
       //call the function that returns the point data in an acceptable format
-      console.log('bus stops');
       const updated_stops = this.makePointJson(res.data.Stops);
       new_stop_json['features'] = updated_stops;
       this.setState({bus_stop_json: new_stop_json});
@@ -314,6 +312,32 @@ class App extends Component {
   render () {
     return(
       <div>
+        <div className = 'customControl'>
+          <ToggleLayerButton
+            onClick = {() => {
+              toggleLayerVisibility(this.map, 'buses')
+            }
+            }
+          >
+            Remove Buses
+          </ToggleLayerButton>
+          <ToggleLayerButton
+            onClick = {() => {
+              toggleLayerVisibility(this.map, 'bus_routes')
+            }
+            }
+          >
+            Remove Bus Routes
+          </ToggleLayerButton>
+          <ToggleLayerButton
+            onClick = {() => {
+              toggleLayerVisibility(this.map, 'bus_stops')
+            }
+            }
+          >
+            Remove Bus Stops
+          </ToggleLayerButton>
+        </div>
         <div ref={el => this.mapContainer = el} className="mapContainer" />
       </div>
     );
@@ -344,4 +368,24 @@ const BusStopPopupContent = ({name, routes, onClick}) =>
       Click to show all routes
     </button>
   </div>
+
+const ToggleLayerButton = ({onClick, children}) =>
+  <div>
+    <button
+      type = 'button'
+      onClick = {() => onClick()}
+    >
+      {children}
+    </button>
+  </div>
+
+function toggleLayerVisibility (map, layer) {
+  let visibility = map.getLayoutProperty(layer, 'visibility');
+  if (visibility === 'visible' | visibility == null) {
+    map.setLayoutProperty(layer, 'visibility', 'none');
+  } else {
+    map.setLayoutProperty(layer, 'visibility', 'visible');
+  }  
+}
+
 export default App;
