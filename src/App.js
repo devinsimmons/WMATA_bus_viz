@@ -5,6 +5,7 @@ import './App.css';
 //
 
 import mapboxgl from 'mapbox-gl';
+import Select from 'react-select';
 import './mapbox-gl.css';
 import axios from 'axios';
 import PropTypes from 'prop-types';
@@ -13,6 +14,7 @@ import PropTypes from 'prop-types';
 const API_KEY = '6351dad7ec9d4c4f9f03bab9b5180c38';
 const BUS_POSITIONS = 'https://api.wmata.com/Bus.svc/json/jBusPositions';
 const BUS_ROUTES = 'https://api.wmata.com/Bus.svc/json/jRouteDetails?RouteID=';
+const ALL_ROUTES = 'https://api.wmata.com/Bus.svc/json/jRoutes'
 const BUS_STOPS = 'https://api.wmata.com/Bus.svc/json/jStops?';
 
 mapboxgl.accessToken = 'pk.eyJ1Ijoic2ltbW9uc2QiLCJhIjoiY2poeXk3YzlpMHJsbTNwcnYyNW1zeG9vMCJ9.sRhhJsrU0qUGbM7LiSrW_Q';
@@ -21,6 +23,8 @@ class App extends Component {
   constructor(props) {
     super(props);
     this.getBusPositions = this.getBusPositions.bind(this);
+    this.getBusStops = this.getBusStops.bind(this);
+    this.getAllRoutes = this.getAllRoutes.bind(this);
     this.onGetRouteByID = this.onGetRouteByID.bind(this);
     this.constructRouteShape = this.constructRouteShape.bind(this);
     this.makePointJson = this.makePointJson.bind(this);
@@ -44,7 +48,9 @@ class App extends Component {
     bus_stop_json: {
       'type': 'FeatureCollection',
       'features': []
-    }
+    },
+    //list of all routes
+    all_rts_arr: []
   }
 
   componentDidMount() {
@@ -177,6 +183,7 @@ class App extends Component {
 
     this.getBusPositions();
     this.getBusStops();
+    this.getAllRoutes();
     //this runs the bus position function every 5 seconds
     this.timer_id = setInterval(() => this.getBusPositions(), 5000);
   }
@@ -236,6 +243,31 @@ class App extends Component {
       const updated_stops = this.makePointJson(res.data.Stops);
       new_stop_json['features'] = updated_stops;
       this.setState({bus_stop_json: new_stop_json});
+    })
+    .catch(err => {
+      console.log(err);
+    });
+  }
+
+  //this function calls the API to get a list of all routes, which are used to 
+  //filter bus features in the multiselect boxes
+  getAllRoutes() {
+    axios
+    .get(ALL_ROUTES, {
+      headers: {
+        'api_key': API_KEY
+      }
+    })
+    .then(res => {
+      const all_rts_new = [];
+      const routes = res.data.Routes;
+      for (var rt of routes) {
+        all_rts_new.push({
+          'value': rt.RouteID, 
+          'label': rt.Name
+        });
+      }
+      this.setState({all_rts_arr: all_rts_new});
     })
     .catch(err => {
       console.log(err);
@@ -321,6 +353,9 @@ class App extends Component {
           >
             Remove Buses
           </ToggleLayerButton>
+          <Select
+            options={this.state.all_rts_arr} // Options to display in the dropdown
+          />
           <ToggleLayerButton
             onClick = {() => {
               toggleLayerVisibility(this.map, 'bus_routes')
@@ -369,6 +404,7 @@ const BusStopPopupContent = ({name, routes, onClick}) =>
     </button>
   </div>
 
+//component that builds a button to turn layers on and off
 const ToggleLayerButton = ({onClick, children}) =>
   <div>
     <button
@@ -378,6 +414,15 @@ const ToggleLayerButton = ({onClick, children}) =>
       {children}
     </button>
   </div>
+
+/* class FeatureMultiSelect extends Component {
+  constructor(props) {
+    super(props);
+  }
+  render() {
+
+  }
+} */
 
 function toggleLayerVisibility (map, layer) {
   let visibility = map.getLayoutProperty(layer, 'visibility');
